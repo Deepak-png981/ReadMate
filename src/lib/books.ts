@@ -1,19 +1,24 @@
-import { Book, BookStatus } from '@/types/book';
+import { Book, BookStatus, Note } from '@/types/book';
 
 const BOOKS_KEY = 'readmate_books';
 
 export function getBooks(): Book[] {
   if (typeof window === 'undefined') return [];
   const books = localStorage.getItem(BOOKS_KEY);
-  return books ? JSON.parse(books) : [];
+  const parsedBooks = books ? JSON.parse(books) : [];
+  return parsedBooks.map((book: Book) => ({
+    ...book,
+    notes: book.notes || [],
+  }));
 }
 
 export function getBookById(id: string): Book | undefined {
   const books = getBooks();
-  return books.find(book => book.id === id);
+  const book = books.find(book => book.id === id);
+  return book ? { ...book, notes: book.notes || [] } : undefined;
 }
 
-export function addBook(book: Omit<Book, 'id' | 'createdAt' | 'currentPage' | 'status'>): Book {
+export function addBook(book: Omit<Book, 'id' | 'createdAt' | 'currentPage' | 'status' | 'notes'>): Book {
   const books = getBooks();
   const newBook: Book = {
     ...book,
@@ -22,6 +27,7 @@ export function addBook(book: Omit<Book, 'id' | 'createdAt' | 'currentPage' | 's
     currentPage: 0,
     status: 'reading',
     totalPages: Number(book.totalPages) || 0,
+    notes: [],
   };
   
   localStorage.setItem(BOOKS_KEY, JSON.stringify([newBook, ...books]));
@@ -58,4 +64,63 @@ export function updateBookStatus(id: string, status: BookStatus): Book {
   
   localStorage.setItem(BOOKS_KEY, JSON.stringify(updatedBooks));
   return updatedBooks.find(b => b.id === id)!;
+}
+
+export function addNote(bookId: string, content: string): Book {
+  const books = getBooks();
+  const book = books.find(b => b.id === bookId);
+  if (!book) throw new Error('Book not found');
+
+  const now = new Date().toISOString();
+  const newNote: Note = {
+    id: crypto.randomUUID(),
+    content,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const updatedBooks = books.map(b =>
+    b.id === bookId ? { ...b, notes: [newNote, ...b.notes] } : b
+  );
+
+  localStorage.setItem(BOOKS_KEY, JSON.stringify(updatedBooks));
+  return updatedBooks.find(b => b.id === bookId)!;
+}
+
+export function editNote(bookId: string, noteId: string, content: string): Book {
+  const books = getBooks();
+  const book = books.find(b => b.id === bookId);
+  if (!book) throw new Error('Book not found');
+
+  const updatedBooks = books.map(b =>
+    b.id === bookId ? {
+      ...b,
+      notes: b.notes.map(note =>
+        note.id === noteId ? {
+          ...note,
+          content,
+          updatedAt: new Date().toISOString(),
+        } : note
+      ),
+    } : b
+  );
+
+  localStorage.setItem(BOOKS_KEY, JSON.stringify(updatedBooks));
+  return updatedBooks.find(b => b.id === bookId)!;
+}
+
+export function deleteNote(bookId: string, noteId: string): Book {
+  const books = getBooks();
+  const book = books.find(b => b.id === bookId);
+  if (!book) throw new Error('Book not found');
+
+  const updatedBooks = books.map(b =>
+    b.id === bookId ? {
+      ...b,
+      notes: b.notes.filter(note => note.id !== noteId),
+    } : b
+  );
+
+  localStorage.setItem(BOOKS_KEY, JSON.stringify(updatedBooks));
+  return updatedBooks.find(b => b.id === bookId)!;
 } 

@@ -1,25 +1,27 @@
 "use client";
 
-import { useEffect, useState, use } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { Book, BookStatus } from '@/types/book';
-import { getBookById, updateBookProgress, updateBookStatus } from '@/lib/books';
+import { getBookById, updateBookProgress, updateBookStatus, addNote, editNote, deleteNote } from '@/lib/books';
 
-export default function BookPage({ params }: { params: Promise<{ id: string }> }) {
+export default function BookPage() {
   const router = useRouter();
+  const { id } = useParams();
   const [book, setBook] = useState<Book | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
-  const resolvedParams = use(params);
+  const [noteContent, setNoteContent] = useState('');
+  const [editingNote, setEditingNote] = useState<{ id: string; content: string } | null>(null);
 
   useEffect(() => {
-    const foundBook = getBookById(resolvedParams.id);
+    if (typeof id !== 'string') return;
+    const foundBook = getBookById(id);
     if (!foundBook) {
       router.push('/');
-    } else {
-      console.log("found book", foundBook);
-      setBook(foundBook);
+      return;
     }
-  }, [resolvedParams.id, router]);
+    setBook(foundBook);
+  }, [id, router]);
 
   if (!book) return null;
 
@@ -51,6 +53,52 @@ export default function BookPage({ params }: { params: Promise<{ id: string }> }
       setBook(updatedBook);
     } catch (error) {
       console.error('Failed to update status:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleAddNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!book || !noteContent.trim() || isUpdating) return;
+
+    setIsUpdating(true);
+    try {
+      const updatedBook = addNote(book.id, noteContent.trim());
+      setBook(updatedBook);
+      setNoteContent('');
+    } catch (error) {
+      console.error('Failed to add note:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleEditNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!book || !editingNote || isUpdating) return;
+
+    setIsUpdating(true);
+    try {
+      const updatedBook = editNote(book.id, editingNote.id, editingNote.content.trim());
+      setBook(updatedBook);
+      setEditingNote(null);
+    } catch (error) {
+      console.error('Failed to edit note:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    if (!book || isUpdating) return;
+
+    setIsUpdating(true);
+    try {
+      const updatedBook = deleteNote(book.id, noteId);
+      setBook(updatedBook);
+    } catch (error) {
+      console.error('Failed to delete note:', error);
     } finally {
       setIsUpdating(false);
     }
@@ -101,12 +149,12 @@ export default function BookPage({ params }: { params: Promise<{ id: string }> }
       </button>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="relative">
-          <div className="aspect-[3/4] relative overflow-hidden rounded-2xl bg-gray-100 dark:bg-gray-900 shadow-lg">
+        <div className="space-y-6">
+          <div className="relative aspect-[3/4] w-full max-w-sm mx-auto">
             <img
               src={book.coverUrl}
               alt={`Cover of ${book.title}`}
-              className="object-cover w-full h-full"
+              className="rounded-lg object-cover shadow-lg"
             />
             <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/70 to-transparent" />
           </div>
@@ -251,6 +299,143 @@ export default function BookPage({ params }: { params: Promise<{ id: string }> }
                 >
                   Not Interested
                 </button>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  Notes
+                </h3>
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {book.notes?.length || 0} note{book.notes?.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              <div className="space-y-6">
+                <div className="relative">
+                  <form onSubmit={handleAddNote} className="space-y-3">
+                    <div className="relative">
+                      <textarea
+                        value={noteContent}
+                        onChange={(e) => setNoteContent(e.target.value)}
+                        placeholder="Write your thoughts about the book..."
+                        className="w-full h-24 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                        disabled={isUpdating}
+                      />
+                      <div className="absolute bottom-3 right-3">
+                        <button
+                          type="submit"
+                          disabled={!noteContent.trim() || isUpdating}
+                          className="inline-flex items-center px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg shadow-sm transition-colors duration-200"
+                        >
+                          <svg 
+                            className="w-4 h-4 mr-1" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                          </svg>
+                          Add Note
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+
+                {book.notes && book.notes.length > 0 ? (
+                  <div className="space-y-4 mt-6">
+                    {book.notes.map((note) => (
+                      <div 
+                        key={note.id} 
+                        className={`bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 transition-all duration-200 ${
+                          editingNote?.id === note.id ? 'ring-2 ring-indigo-500' : 'hover:border-indigo-500/50 dark:hover:border-indigo-500/50'
+                        }`}
+                      >
+                        {editingNote?.id === note.id ? (
+                          <form onSubmit={handleEditNote} className="space-y-4">
+                            <div className="relative">
+                              <textarea
+                                value={editingNote.content}
+                                onChange={(e) => setEditingNote({ ...editingNote, content: e.target.value })}
+                                className="w-full h-32 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                                disabled={isUpdating}
+                                autoFocus
+                              />
+                              <div className="absolute top-2 right-2 flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingNote(null)}
+                                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                                <button
+                                  type="submit"
+                                  disabled={!editingNote.content.trim() || isUpdating}
+                                  className="p-1 text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors disabled:opacity-50"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                          </form>
+                        ) : (
+                          <>
+                            <div className="flex items-start justify-between gap-4">
+                              <p className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap text-sm leading-relaxed flex-1">
+                                {note.content}
+                              </p>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <button
+                                  onClick={() => setEditingNote({ id: note.id, content: note.content })}
+                                  className="p-1 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                                  title="Edit note"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteNote(note.id)}
+                                  className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                                  title="Delete note"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                            <div className="mt-3 flex items-center text-xs text-gray-500 dark:text-gray-400">
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              {new Date(note.updatedAt).toLocaleDateString(undefined, {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      No notes yet. Add your first note about this book!
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

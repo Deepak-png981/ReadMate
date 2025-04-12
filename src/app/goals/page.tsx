@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { addGoal, getGoals, updateGoalStatus, getGoalProgressById, getProgressStats } from '@/lib/goals';
 import { ReadingGoal, GoalProgress, GoalType } from '@/types/goals';
-import { FiTarget, FiCalendar, FiBook, FiTrendingUp } from 'react-icons/fi';
+import { FiTarget, FiBook, FiTrendingUp } from 'react-icons/fi';
 
 export default function GoalsPage() {
   const [goals, setGoals] = useState<ReadingGoal[]>([]);

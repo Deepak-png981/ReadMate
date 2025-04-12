@@ -17,6 +17,12 @@ export function Navbar() {
           </div>
           <div className="flex items-center space-x-4">
             <Link
+              href="/goals"
+              className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors duration-200"
+            >
+              Goals
+            </Link>
+            <Link
               href="/add"
               className="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors duration-200"
             >

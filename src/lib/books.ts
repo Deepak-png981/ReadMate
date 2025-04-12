@@ -1,4 +1,5 @@
 import { Book, BookStatus, Note } from '@/types/book';
+import { getGoals, updateGoalProgress } from '@/lib/goals';
 
 const BOOKS_KEY = 'readmate_books';
 
@@ -34,12 +35,31 @@ export function addBook(book: Omit<Book, 'id' | 'createdAt' | 'currentPage' | 's
   return newBook;
 }
 
+function updateGoalProgressFromBookChange(oldPage: number, newPage: number) {
+  const goals = getGoals();
+  const activeGoals = goals.filter(g => g.status === 'active');
+  if (activeGoals.length === 0) return;
+
+  const today = new Date().toISOString().split('T')[0];
+  const pageDiff = newPage - oldPage;
+  
+  if (pageDiff !== 0) {
+    // Update all active goals with the page difference
+    activeGoals.forEach(goal => {
+      updateGoalProgress(goal.id, today, pageDiff);
+    });
+  }
+}
+
 export function updateBookProgress(id: string, currentPage: number): Book {
   const books = getBooks();
   const book = books.find(b => b.id === id);
   if (!book) throw new Error('Book not found');
 
   const validatedCurrentPage = Math.max(0, Math.min(Number(currentPage) || 0, book.totalPages));
+  
+  // Update goal progress before updating the book
+  updateGoalProgressFromBookChange(book.currentPage, validatedCurrentPage);
   
   const updatedBooks = books.map(b => 
     b.id === id ? { ...b, currentPage: validatedCurrentPage } : b
